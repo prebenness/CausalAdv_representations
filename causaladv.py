@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+
+from representations import store_representations
 from pgd_attack import pgd_attack, adp_pgd_attack
 from wideresnet import WideResNet
 from resnet import ResNet18
@@ -138,7 +140,7 @@ def model_train():
                     epoch, np.mean(tr_na), np.mean(tr_al), np.mean(tr_aa), clean, fgsma, pgd20, cwa20))
 
     # Save the last checkpoint
-    save_model(model=model, model_g=model_g, basis=basis)
+    save_model(model=model, model_g=model_g, basis=basis, name='final')
 
 
 def save_model(model, model_g, basis, acc=0, name=''):
@@ -213,9 +215,11 @@ def model_robust(model, num_steps, loss_fn, adaptive=False, model_g=None, basis=
 if __name__ == "__main__":
     if args.train:
         model_train()
+    elif args.store_reprs:
+        store_representations(args)
     else:
         # Load models and basis
-        model_name = os.path.join(args.output_dir, f'{args.dataset}-{args.model_name}.pth')
+        model_name = os.path.join(args.output_dir, f'{args.dataset}-{args.model_name}-best.pth')
         test_model = cnn(num_classes=args.num_classes).to(args.device)  # model h
         B = torch.load(model_name)['b']  # basis
         G = PredYWithS(feat_dim=B.size(1)).to(args.device)  # model g

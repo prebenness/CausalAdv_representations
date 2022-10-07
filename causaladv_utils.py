@@ -31,6 +31,7 @@ def get_args_cifar10():
 
     # basic parameters
     parser.add_argument('--train', type=bool, default=False)
+    parser.add_argument('--store_reprs', type=bool, default=False)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--num_epochs', type=int, default=120)
     parser.add_argument('--base_lr', type=float, default=0.1)

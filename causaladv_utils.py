@@ -17,14 +17,14 @@ def get_args_cifar10():
     parser = argparse.ArgumentParser()
 
     # training specific args
-    parser.add_argument('--dataset', type=str, default='cifar10', choices='cifar10 or cifar100')
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=[ 'cifar10', 'cifar100' ])
     parser.add_argument('--download', type=bool, default=True, help="if can't find dataset, download from web")
     parser.add_argument('--image_size', type=int, default=32)
     parser.add_argument('--num_classes', type=int, default=10)
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--data_dir', type=str, default='data')
     parser.add_argument('--output_dir', type=str, default='output')
-    parser.add_argument('--model_name', type=str, default='adam_13-best')
+    parser.add_argument('--model_name', type=str, default='adam_13')
     parser.add_argument('--net', type=str, default='res', choices='wrn or res')
     parser.add_argument('--gpu', type=str, default=gpu, choices='0 or 1')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
@@ -48,7 +48,7 @@ def get_args_cifar10():
     parser.add_argument('--adv_eps', type=float, default=0.031)
     parser.add_argument('--adv_step', type=float, default=0.007)
 
-    parser.add_argument('--adv_mode', type=str, default='adam', choices='adam or adat')
+    parser.add_argument('--adv_mode', type=str, default='adam', choices=['adam', 'adat'])
     parser.add_argument('--adv_alpha', type=float, default=1.0)
     parser.add_argument('--adv_beta', type=float, default=1.0)  # 1.0 for adam, 6.0 for adat
     parser.add_argument('--adv_ratio', type=float, default=1.0)

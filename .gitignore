@@ -1,7 +1,10 @@
-__pycache__
+**/__pycache__
 *.pyc
 
 .vscode
 
+venv
 data
 output
+logs
+sbatch_jobs

@@ -199,7 +199,7 @@ def model_robust(model, num_steps, loss_fn, adaptive=False, model_g=None, basis=
                                     loss_fn=loss_fn, model_g=model_g, basis=basis)
         else:
             images = pgd_attack(model, images, labels, eps=epsilon, step_size=step_size, k=num_steps, loss_fn=loss_fn,
-                                num_classes=args.num_classes)
+                                num_classes=num_classes)
         z = model(images).detach()
         loss = ce_loss(z, labels)
         _, pred_label = torch.max(z.data, 1)
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     else:
         # Load models and basis
         model_name = os.path.join(args.output_dir, f'{args.dataset}-{args.model_name}-best.pth')
-        test_model = cnn(num_classes=args.num_classes).to(args.device)  # model h
+        test_model = cnn(num_classes=num_classes).to(args.device)  # model h
         B = torch.load(model_name)['b']  # basis
         G = PredYWithS(feat_dim=B.size(1)).to(args.device)  # model g
         G.load_state_dict(torch.load(model_name)['g'])

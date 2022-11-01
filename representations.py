@@ -9,6 +9,8 @@ from resnet import ResNet18
 
 def store_representations(args):
 
+    num_classes = 10 if args.dataset == 'cifar10' else 100
+
     # Get dataset
     train_loader, test_loader = get_dataset(args)
 
@@ -17,7 +19,7 @@ def store_representations(args):
     loaded_dict = torch.load(model_path)
 
     ## Net: Model h()
-    net = ResNet18(num_classes=args.num_classes).to(args.device)
+    net = ResNet18(num_classes=num_classes).to(args.device)
     net.load_state_dict(loaded_dict['net'])
     net.cuda()      # Set model to use CUDA device
     net.eval()      # Set model to not be in train mode

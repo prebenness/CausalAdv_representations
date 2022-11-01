@@ -13,15 +13,19 @@ gpu = '0'
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
 
-def get_args_cifar10():
+def get_args():
     parser = argparse.ArgumentParser()
 
-    # training specific args
+    # Set mode
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument('--train', action='store_true')
+    mode_group.add_argument('--store_repr', action='store_true')
+
+    # Training specific args
     parser.add_argument('--dataset', type=str, default='cifar10', choices=[ 'cifar10', 'cifar100' ])
     parser.add_argument('--download', type=bool, default=True, help="if can't find dataset, download from web")
     parser.add_argument('--image_size', type=int, default=32)
-    parser.add_argument('--num_classes', type=int, default=10)
-    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--data_dir', type=str, default='data')
     parser.add_argument('--output_dir', type=str, default='output')
     parser.add_argument('--model_name', type=str, default='adam_13')
@@ -29,9 +33,7 @@ def get_args_cifar10():
     parser.add_argument('--gpu', type=str, default=gpu, choices='0 or 1')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
 
-    # basic parameters
-    parser.add_argument('--train', type=bool, default=False)
-    parser.add_argument('--store_reprs', type=bool, default=False)
+    # Basic parameters
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--num_epochs', type=int, default=120)
     parser.add_argument('--base_lr', type=float, default=0.1)

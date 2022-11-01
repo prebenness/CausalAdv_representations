@@ -1,12 +1,12 @@
 # Train
 
 ```bash
-python causaladv.py --train=true --dataset={cifar10, cifar100}
+python causaladv.py --train --dataset={cifar10, cifar100}
 ```
 
 # Compute representations
 ```bash
-python causaladv.py --store_repr=true --dataset={cifar10, cifar100}
+python causaladv.py --store_repr --dataset={cifar10, cifar100}
 ```
 
 Requires pre-trained model. Searches for model in: 

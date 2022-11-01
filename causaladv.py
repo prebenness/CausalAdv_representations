@@ -9,15 +9,16 @@ from representations import store_representations
 from pgd_attack import pgd_attack, adp_pgd_attack
 from wideresnet import WideResNet
 from resnet import ResNet18
-from causaladv_utils import pgd, set_deterministic, get_dataset, get_args_cifar10, init_anchor, PredYWithS, \
+from causaladv_utils import pgd, set_deterministic, get_dataset, get_args, init_anchor, PredYWithS, \
     get_s_pre, SoftCrossEntropy, Basis
 
 set_deterministic(0)
-args = get_args_cifar10()
+args = get_args()
 if args.net == 'wrn':
     cnn = WideResNet
 else:
     cnn = ResNet18
+num_classes = 10 if args.dataset == 'cifar10' else 100
 best_acc, best_epoch = 0, 0
 train_loader, test_loader = get_dataset(args)
 os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -32,11 +33,11 @@ def model_train():
     # Initialize model and basis
     basis = None
     print('Initialize model')
-    model = cnn(num_classes=args.num_classes).to(args.device)
+    model = cnn(num_classes=num_classes).to(args.device)
     print('Initialize anchor')
     anchor = init_anchor(weight=model.fc[0].weight.data.detach())
     v_space = Basis(anchor=anchor)
-    model_g = PredYWithS(feat_dim=anchor.size(1), num_classes=args.num_classes).to(args.device)
+    model_g = PredYWithS(feat_dim=anchor.size(1), num_classes=num_classes).to(args.device)
     soft_ce = SoftCrossEntropy().to(args.device)
     ce_loss = nn.CrossEntropyLoss().to(args.device)
     kl_loss = nn.KLDivLoss(reduction='batchmean').to(args.device)
@@ -215,7 +216,7 @@ def model_robust(model, num_steps, loss_fn, adaptive=False, model_g=None, basis=
 if __name__ == "__main__":
     if args.train:
         model_train()
-    elif args.store_reprs:
+    elif args.store_repr:
         store_representations(args)
     else:
         # Load models and basis

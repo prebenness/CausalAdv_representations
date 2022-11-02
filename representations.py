@@ -28,7 +28,7 @@ def store_representations(args):
     basis = loaded_dict['b']
     
     ## Model g()
-    model_g = PredYWithS(feat_dim=basis.size(1)).to(args.device)
+    model_g = PredYWithS(feat_dim=basis.size(1), num_classes=num_classes).to(args.device)
     model_g.load_state_dict(loaded_dict['g'])
 
     # Forward pass over dataset and store representations

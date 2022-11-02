@@ -40,26 +40,29 @@ def store_representations(args):
 
         images, style, content = [], [], []
         for idx, (x, y) in enumerate(loader):
-            x, y = x.to(args.device), y.to(args.device)     # Load data to GPU
+            with torch.no_grad():
+                x, y = x.to(args.device), y.to(args.device)     # Load data to GPU
 
-            net.is_train(True)                              # Set train_state to True to get z and W_c*z
-            z, y_c = net(x)                                 # ResNet forward pass
+                net.is_train(True)                              # Set train_state to True to get z and W_c*z
+                z, y_c = net(x)                                 # ResNet forward pass
+                net.eval()                                      # Ensure layers are in eval mode to save GPU memory
 
-            # Construct orhogonal projection from final ResNet layer
-            anchor = init_anchor(weight=net.fc[0].weight.data.detach())
-            v_space = Basis(anchor=anchor)
-            basis = v_space.get_basis(f=z, weight=net.fc[0].weight.data)
+                # Construct orhogonal projection from final ResNet layer
+                anchor = init_anchor(weight=net.fc[0].weight.data.detach())
+                v_space = Basis(anchor=anchor)
+                basis = v_space.get_basis(f=z, weight=net.fc[0].weight.data)
 
-            # Estimate of mean of style content
-            mu_s = get_s_pre(z, basis)
-            y_s = model_g(mu_s.detach().clone(), y, ratio=args.adv_ratio)
+                # Estimate of mean of style content
+                mu_s = get_s_pre(z, basis)
+                y_s = model_g(mu_s.detach().clone(), y, ratio=args.adv_ratio)
 
-            # Store image, style, content
-            images.append(x)
-            style.append(y_s)
-            content.append(y_c)
+                # Store image, style, content
+                images.append(x)
+                style.append(y_s)
+                content.append(y_c)
 
-            bar.next()
+                print(f'Completed batch {idx} of {len(loader)}')
+                bar.next()
         bar.finish()
 
         ## Save images, contents and styles for test and train sets

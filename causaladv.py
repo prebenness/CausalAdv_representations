@@ -1,4 +1,5 @@
 import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -11,6 +12,7 @@ from wideresnet import WideResNet
 from resnet import ResNet18
 from causaladv_utils import pgd, set_deterministic, get_dataset, get_args, init_anchor, PredYWithS, \
     get_s_pre, SoftCrossEntropy, Basis
+import config as cfg
 
 set_deterministic(0)
 args = get_args()
@@ -18,7 +20,7 @@ if args.net == 'wrn':
     cnn = WideResNet
 else:
     cnn = ResNet18
-num_classes = 10 if args.dataset == 'cifar10' else 100
+
 best_acc, best_epoch = 0, 0
 train_loader, test_loader = get_dataset(args)
 os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -26,18 +28,18 @@ os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
 def model_train():
     global best_acc, best_epoch
-    file_path = os.path.join(args.output_dir, f'{args.model_name}.txt')
-    with open(file_path, "w+") as file:
+    log_file_path = os.path.join(cfg.save_dir, f'{args.model_name}-train_log.txt')
+    with open(log_file_path, "w+") as file:
         file.write('Epoch\tNat-A\tAdv-L\tAdv-A\tClean\tFGSMA\tPGD20\tCWA20\n')
 
     # Initialize model and basis
     basis = None
     print('Initialize model')
-    model = cnn(num_classes=num_classes).to(args.device)
+    model = cnn(num_classes=cfg.num_classes).to(args.device)
     print('Initialize anchor')
     anchor = init_anchor(weight=model.fc[0].weight.data.detach())
     v_space = Basis(anchor=anchor)
-    model_g = PredYWithS(feat_dim=anchor.size(1), num_classes=num_classes).to(args.device)
+    model_g = PredYWithS(feat_dim=anchor.size(1), num_classes=cfg.num_classes).to(args.device)
     soft_ce = SoftCrossEntropy().to(args.device)
     ce_loss = nn.CrossEntropyLoss().to(args.device)
     kl_loss = nn.KLDivLoss(reduction='batchmean').to(args.device)
@@ -136,7 +138,7 @@ def model_train():
                 print('Best PGD20 accuracy {:.2f} at epoch {}'.format(best_acc, best_epoch))
 
             # Log
-            with open(file_path, "a+") as file:
+            with open(log_file_path, "a+") as file:
                 file.write('{}    \t{:.2f}\t{:.3f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\n'.format(
                     epoch, np.mean(tr_na), np.mean(tr_al), np.mean(tr_aa), clean, fgsma, pgd20, cwa20))
 
@@ -146,7 +148,7 @@ def model_train():
 
 def save_model(model, model_g, basis, acc=0, name=''):
     print('Saving..')
-    model_path = os.path.join(args.output_dir, f'{args.dataset}-{args.model_name}-{name}.pth')
+    model_path = os.path.join(cfg.save_dir, f'{name}.pth')
     torch.save({'net': model.state_dict(), 'acc': acc, 'g': model_g.state_dict(), 'b': basis}, model_path)
     print(f"Model saved to {model_path}")
 
@@ -199,7 +201,7 @@ def model_robust(model, num_steps, loss_fn, adaptive=False, model_g=None, basis=
                                     loss_fn=loss_fn, model_g=model_g, basis=basis)
         else:
             images = pgd_attack(model, images, labels, eps=epsilon, step_size=step_size, k=num_steps, loss_fn=loss_fn,
-                                num_classes=num_classes)
+                                num_classes=cfg.num_classes)
         z = model(images).detach()
         loss = ce_loss(z, labels)
         _, pred_label = torch.max(z.data, 1)
@@ -221,7 +223,7 @@ if __name__ == "__main__":
     else:
         # Load models and basis
         model_name = os.path.join(args.output_dir, f'{args.dataset}-{args.model_name}-best.pth')
-        test_model = cnn(num_classes=num_classes).to(args.device)  # model h
+        test_model = cnn(num_classes=cfg.num_classes).to(args.device)  # model h
         B = torch.load(model_name)['b']  # basis
         G = PredYWithS(feat_dim=B.size(1)).to(args.device)  # model g
         G.load_state_dict(torch.load(model_name)['g'])

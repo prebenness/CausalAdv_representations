@@ -9,13 +9,13 @@ from resnet import ResNet18
 
 def store_representations(args):
 
-    num_classes = 10 if args.dataset == 'cifar10' else 100
+    num_classes = 100 if args.dataset == 'cifar100' else 10
 
     # Get dataset
     train_loader, test_loader = get_dataset(args)
 
     # Load pre-trained models
-    model_path = os.path.join(args.output_dir, f'{args.dataset}-{args.model_name}-best.pth')
+    model_path = os.path.join(args.model_path)
     loaded_dict = torch.load(model_path)
 
     ## Net: Model h()
@@ -42,22 +42,23 @@ def store_representations(args):
         for idx, (x, y) in enumerate(loader):
             x, y = x.to(args.device), y.to(args.device)     # Load data to GPU
 
-            net.is_train(True)                              # Set train_state to True to get z and W_c*z
-            z, y_c = net(x)                                 # ResNet forward pass
+            with torch.no_grad():
+                net.is_train(True)                          # Set train_state to True to get z and W_c*z
+                z, y_c = net(x)                             # ResNet forward pass
 
-            # Construct orhogonal projection from final ResNet layer
-            anchor = init_anchor(weight=net.fc[0].weight.data.detach())
-            v_space = Basis(anchor=anchor)
-            basis = v_space.get_basis(f=z, weight=net.fc[0].weight.data)
+                # Construct orhogonal projection from final ResNet layer
+                anchor = init_anchor(weight=net.fc[0].weight.data.detach())
+                v_space = Basis(anchor=anchor)
+                basis = v_space.get_basis(f=z, weight=net.fc[0].weight.data)
 
-            # Estimate of mean of style content
-            mu_s = get_s_pre(z, basis)
-            y_s = model_g(mu_s.detach().clone(), y, ratio=args.adv_ratio)
+                # Estimate of mean of style content
+                mu_s = get_s_pre(z, basis)
+                y_s = model_g(mu_s.detach().clone(), y, ratio=args.adv_ratio)
 
-            # Store image, style, content
-            images.append(x)
-            style.append(y_s)
-            content.append(y_c)
+                # Store image, style, content
+                images.append(x)
+                style.append(y_s)
+                content.append(y_c)
 
             bar.next()
         bar.finish()

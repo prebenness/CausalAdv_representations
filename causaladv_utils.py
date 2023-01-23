@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,6 +11,8 @@ import random
 import torchvision
 from torchvision import transforms
 
+import config as cfg
+
 gpu = '0'
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
@@ -17,12 +21,12 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     # Set mode
-    mode_group = parser.add_mutually_exclusive_group(required=True)
-    mode_group.add_argument('--train', action='store_true')
-    mode_group.add_argument('--store_repr', action='store_true')
+    parser.add_argument('--train', action='store_true')
+    parser.add_argument('--store_repr', action='store_true')
+    parser.add_argument('--model_path', type=str)
 
     # Training specific args
-    parser.add_argument('--dataset', type=str, default='cifar10', choices=[ 'cifar10', 'cifar100' ])
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=[ 'cifar10', 'cifar100', 'mnist' ])
     parser.add_argument('--download', type=bool, default=True, help="if can't find dataset, download from web")
     parser.add_argument('--image_size', type=int, default=32)
     parser.add_argument('--num_workers', type=int, default=8)
@@ -56,9 +60,50 @@ def get_args():
     parser.add_argument('--adv_ratio', type=float, default=1.0)
 
     args = parser.parse_args()
-    os.makedirs(args.output_dir, exist_ok=True)
+
+    sanitise_args(args)
+    handle_args(args)
 
     return args
+
+
+def sanitise_args(args):
+    # Sanitise args
+    # Either train or repr mode
+    assert not (args.train and args.store_repr)
+    
+    # If computing representations, need path to pretrained model
+    if args.store_repr:
+        if not args.model_path:
+            raise ValueError('Must supply path to pretrained model')
+
+        # Path e.g.: output/2023-01-18_11-49-57_mnist_adam_13/best.pth
+        model_name = args.model_path.split(os.sep)[-2]
+        dataset = model_name.split('_')[-3]
+
+        if dataset != args.dataset:
+            raise ValueError('Model must be trained and run on same dataset')
+
+
+def handle_args(args):
+    # Create or find save directory
+    if args.train:
+        now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        save_dir = os.path.join(args.output_dir, f'{now}_{args.dataset}_{args.model_name}')
+        os.makedirs(save_dir, exist_ok=True)
+    elif args.model_path:
+        save_dir, _ = os.path.split(args.model_path)
+
+    cfg.save_dir = save_dir
+
+    if args.dataset == 'cifar10':
+        cfg.num_classes = 10
+    elif args.dataset == 'cifar100':
+        cfg.num_classes = 100
+    elif args.dataset == 'mnist':
+        cfg.num_classes = 10
+    else:
+        raise NotImplementedError(f'Dataset {args.dataset} not supported')
 
 
 def pgd(model, images, labels, basis, model_g, args):
@@ -318,6 +363,19 @@ class SoftCrossEntropy(nn.Module):
             return loss
 
 
+def get_mnist(args, download=True):
+    train_trans = transforms.Compose([transforms.RandomCrop(28, padding=4), transforms.RandomHorizontalFlip(),
+                                      transforms.ToTensor()])
+    test_trans = transforms.Compose([transforms.ToTensor()])
+
+    train_set = torchvision.datasets.MNIST(args.data_dir, train=True, transform=train_trans, download=download)
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True,
+                                               num_workers=args.num_workers, pin_memory=True, drop_last=True)
+    
+    test_set = torchvision.datasets.MNIST(args.data_dir, train=False, transform=test_trans, download=download)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=500, shuffle=False)
+    return train_loader, test_loader
+
 def get_cifar10(args, download=True):
     train_trans = transforms.Compose([transforms.RandomCrop(32, padding=4), transforms.RandomHorizontalFlip(),
                                       transforms.ToTensor()])
@@ -350,8 +408,10 @@ def get_dataset(args, download=True):
         get_data = get_cifar10
     elif args.dataset == 'cifar100':
         get_data = get_cifar100
+    elif args.dataset == 'mnist':
+        get_data = get_mnist    
     else:
-        get_data = None
+        raise NotImplementedError(f'Dataset {args.dataset} not supported')
     train_loader, test_loader = get_data(args, download)
 
     return train_loader, test_loader

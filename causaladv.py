@@ -142,6 +142,9 @@ def model_train():
                 file.write('{}    \t{:.2f}\t{:.3f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\n'.format(
                     epoch, np.mean(tr_na), np.mean(tr_al), np.mean(tr_aa), clean, fgsma, pgd20, cwa20))
 
+        if (epoch + 1) % 5 == 0:
+            save_model(model=model, model_g=model_g, basis=basis, name=f'epoch={epoch+1}')
+
     # Save the last checkpoint
     save_model(model=model, model_g=model_g, basis=basis, name='final')
 

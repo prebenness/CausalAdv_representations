@@ -223,19 +223,40 @@ if __name__ == "__main__":
         model_train()
     elif args.store_repr:
         store_representations(args)
-    else:
+    elif args.eval:
+        # Load pre-trained model and basis
+        model_path = os.path.join(args.model_path)
+        loaded_dicts = torch.load(model_path)
+
         # Load models and basis
-        model_name = os.path.join(args.output_dir, f'{args.dataset}-{args.model_name}-best.pth')
         test_model = cnn(num_classes=cfg.num_classes).to(args.device)  # model h
-        B = torch.load(model_name)['b']  # basis
-        G = PredYWithS(feat_dim=B.size(1)).to(args.device)  # model g
-        G.load_state_dict(torch.load(model_name)['g'])
-        test_model.load_state_dict(torch.load(model_name)['net'])
+        B = loaded_dicts['b']  # basis
+        G = PredYWithS(feat_dim=B.size(1), num_classes=cfg.num_classes).to(args.device)  # model g
+        G.load_state_dict(loaded_dicts['g'])
+        test_model.load_state_dict(loaded_dicts['net'])
+        test_model.cuda()
         test_model.eval()
 
+        # Make log dir
+        model_dir, model_name = os.path.split(model_path)
+        log_name = '.'.join([model_name.split('.')[0], 'txt'])
+        log_file = os.path.join(model_dir, log_name)
+
         # Robustness evaluation
+
+        clean_acc = model_test(model=test_model)
+        pgd20_acc = model_robust(test_model, num_steps=20, loss_fn='ce', adaptive=False, model_g=G, basis=B)
+        pgd40_acc = model_robust(test_model, num_steps=40, loss_fn='ce', adaptive=False, model_g=G, basis=B)
+        
+        with open(log_file, 'w') as w:
+            w.write(f'Clean test acc: {clean_acc}\n')
+            w.write(f'PGD20 test acc: {pgd20_acc}\n')
+            w.write(f'PGD40 test acc: {pgd40_acc}\n')
+
+        print(f'Test: clean acc.: {clean_acc} PGD20: {pgd20_acc} PGD40: {pgd40_acc}')
+
+        """ 
         adaptive_attack = False  # Here we can use the normal attacks and adaptive attacks
-        model_test(model=test_model)
         # FGSM
         model_robust(test_model, num_steps=1, loss_fn='ce', adaptive=adaptive_attack, model_g=G, basis=B)
         # PGD-20
@@ -257,4 +278,6 @@ if __name__ == "__main__":
         # PGD-1000
         model_robust(test_model, num_steps=1000, loss_fn='ce', adaptive=adaptive_attack, model_g=G, basis=B)
         # CW-1000
-        model_robust(test_model, num_steps=1000, loss_fn='cw', adaptive=adaptive_attack, model_g=G, basis=B)
+        model_robust(test_model, num_steps=1000, loss_fn='cw', adaptive=adaptive_attack, model_g=G, basis=B) """
+    else:
+        raise NotImplementedError

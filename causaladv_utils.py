@@ -21,8 +21,11 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     # Set mode
-    parser.add_argument('--train', action='store_true')
-    parser.add_argument('--store_repr', action='store_true')
+    modes = parser.add_mutually_exclusive_group(required=True)
+    modes.add_argument('--train', action='store_true')
+    modes.add_argument('--store_repr', action='store_true')
+    modes.add_argument('--eval', action='store_true')
+    
     parser.add_argument('--model_path', type=str)
 
     # Training specific args

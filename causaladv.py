@@ -2,12 +2,13 @@ import os
 
 import numpy as np
 import torch
+import torchattacks
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
 from representations import store_representations
-from pgd_attack import pgd_attack, adp_pgd_attack
+from pgd_attack import pgd_attack, adp_pgd_attack, DummyAttack
 from wideresnet import WideResNet
 from resnet import ResNet18
 from causaladv_utils import pgd, set_deterministic, get_dataset, get_args, init_anchor, PredYWithS, \
@@ -190,7 +191,7 @@ def model_robust(model, num_steps, loss_fn, adaptive=False, model_g=None, basis=
     model = model.cuda()
     model.is_train(False)
     ce_loss = nn.CrossEntropyLoss()
-    epsilon = 0.031
+    epsilon = 8/255
     if num_steps == 1:
         step_size = epsilon
     else:
@@ -218,6 +219,64 @@ def model_robust(model, num_steps, loss_fn, adaptive=False, model_g=None, basis=
     return acc
 
 
+def test_robustness(model, data_loader, device):
+    attack_factories = {
+        'dummy_attacker': DummyAttack,
+        'pgd20_linf': lambda m: torchattacks.PGD(m, eps=8/255, alpha=2/255, steps=20, random_start=True),
+        'pgd40_linf': lambda m: torchattacks.PGD(m, eps=8/255, alpha=4/255, steps=40, random_start=True),
+        'pgd20_l2': lambda m: torchattacks.PGDL2(m, eps=1.0, alpha=0.2, steps=20, random_start=True),
+        'pgd40_l2': lambda m: torchattacks.PGDL2(m, eps=1.0, alpha=0.2, steps=40, random_start=True),
+        'fgsm_linf': lambda m: torchattacks.FGSM(m, eps=8/255),
+        'cw20_l2': lambda m: torchattacks.CW(m, c=1, kappa=0, steps=20),
+        'cw40_l2': lambda m: torchattacks.CW(m, c=1, kappa=0, steps=20),
+    }
+
+    results = {}
+    for attack_name, attack_factory in attack_factories.items():
+        print(f'Testing on {attack_name}')
+        clean_acc, adv_acc = test_attack(
+            model, attack_factory=attack_factory, test_loader=data_loader, device=device
+        )
+        results[attack_name] = (clean_acc, adv_acc)
+
+    res_text = '\n'.join(
+        [ f'{attack_name} clean acc: {v[0]:10.8f} adv acc: {v[1]:10.8f}' for attack_name, v in results.items() ]
+    )
+
+    print(res_text)
+    return res_text
+
+
+def test_attack(model, attack_factory, test_loader, device):
+    num_corr, num_corr_adv, num_tot = 0, 0, 0
+    for (x, y) in test_loader:
+        x = x.to(device)
+        y = y.to(device)
+
+        # Get clean test preds
+        y_pred = model(x)
+
+        # Craft adversarial samples
+        attacker = attack_factory(model)
+        x_adv = attacker(x, y)
+        y_pred_adv = model(x_adv)
+
+        num_corr += (y_pred.argmax(dim=1) == y).sum().item()
+        num_corr_adv += (y_pred_adv.argmax(dim=1) == y).sum().item()
+        num_tot += y.shape[0]
+
+        print(f'Processed {num_tot:5d} of {len(test_loader.dataset):5d} samples, current tally: Clean acc: {num_corr / num_tot:4.3f} Adv acc: {num_corr_adv / num_tot:4.3f}')
+
+    # Compute and store results
+    clean_acc = num_corr / num_tot
+    adv_acc = num_corr_adv / num_tot
+
+    res_text = f'Test completed: Clean acc: {clean_acc} Adv acc: {adv_acc}'
+    print(res_text)
+
+    return clean_acc, adv_acc
+
+
 if __name__ == "__main__":
     if args.train:
         model_train()
@@ -242,42 +301,10 @@ if __name__ == "__main__":
         log_name = '.'.join([model_name.split('.')[0], 'txt'])
         log_file = os.path.join(model_dir, log_name)
 
-        # Robustness evaluation
+        # Evaluate robustness
+        res_text = test_robustness(test_model, test_loader, device=args.device)
 
-        clean_acc = model_test(model=test_model)
-        pgd20_acc = model_robust(test_model, num_steps=20, loss_fn='ce', adaptive=False, model_g=G, basis=B)
-        pgd40_acc = model_robust(test_model, num_steps=40, loss_fn='ce', adaptive=False, model_g=G, basis=B)
-        
         with open(log_file, 'w') as w:
-            w.write(f'Clean test acc: {clean_acc}\n')
-            w.write(f'PGD20 test acc: {pgd20_acc}\n')
-            w.write(f'PGD40 test acc: {pgd40_acc}\n')
-
-        print(f'Test: clean acc.: {clean_acc} PGD20: {pgd20_acc} PGD40: {pgd40_acc}')
-
-        """ 
-        adaptive_attack = False  # Here we can use the normal attacks and adaptive attacks
-        # FGSM
-        model_robust(test_model, num_steps=1, loss_fn='ce', adaptive=adaptive_attack, model_g=G, basis=B)
-        # PGD-20
-        model_robust(test_model, num_steps=20, loss_fn='ce', adaptive=adaptive_attack, model_g=G, basis=B)
-        # CW-20
-        model_robust(test_model, num_steps=20, loss_fn='cw', adaptive=adaptive_attack, model_g=G, basis=B)
-        # PGD-50
-        model_robust(test_model, num_steps=50, loss_fn='ce', adaptive=adaptive_attack, model_g=G, basis=B)
-        # CW-50
-        model_robust(test_model, num_steps=50, loss_fn='cw', adaptive=adaptive_attack, model_g=G, basis=B)
-        # PGD-100
-        model_robust(test_model, num_steps=100, loss_fn='ce', adaptive=adaptive_attack, model_g=G, basis=B)
-        # CW-100
-        model_robust(test_model, num_steps=100, loss_fn='cw', adaptive=adaptive_attack, model_g=G, basis=B)
-        # PGD-500
-        model_robust(test_model, num_steps=500, loss_fn='ce', adaptive=adaptive_attack, model_g=G, basis=B)
-        # CW-500
-        model_robust(test_model, num_steps=500, loss_fn='cw', adaptive=adaptive_attack, model_g=G, basis=B)
-        # PGD-1000
-        model_robust(test_model, num_steps=1000, loss_fn='ce', adaptive=adaptive_attack, model_g=G, basis=B)
-        # CW-1000
-        model_robust(test_model, num_steps=1000, loss_fn='cw', adaptive=adaptive_attack, model_g=G, basis=B) """
+            w.write(res_text)
     else:
         raise NotImplementedError

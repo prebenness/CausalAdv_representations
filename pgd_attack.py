@@ -5,6 +5,17 @@ from torch.autograd import Variable
 from causaladv_utils import get_s_pre, SoftCrossEntropy
 
 
+class DummyAttack():
+    def __init__(self, m):
+        ...
+
+    def set_normalization_used(self, mean, std):
+        ...
+
+    def __call__(self, x, y):
+        return x
+
+
 def adp_pgd_attack(model, images, labels, step_size, k, eps, model_g, basis, loss_fn='ce'):
     model.is_train(True)
     # 1. initialization
@@ -77,7 +88,7 @@ def pgd_attack(model, images, labels, step_size, k, eps, num_classes, loss_fn='c
     return x
 
 
-def cw_loss(output, target, confidence=50, num_classes=10):
+def cw_loss(output, target, confidence=0, num_classes=10):
     target = target.data
     target_onehot = torch.zeros(target.size() + (num_classes,))
     target_onehot = target_onehot.cuda()

@@ -36,7 +36,7 @@ def model_train():
     # Initialize model and basis
     basis = None
     print('Initialize model')
-    model = cnn(num_classes=cfg.num_classes).to(args.device)
+    model = cnn().to(args.device)
     print('Initialize anchor')
     anchor = init_anchor(weight=model.fc[0].weight.data.detach())
     v_space = Basis(anchor=anchor)

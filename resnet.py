@@ -1,9 +1,6 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-cifar_mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(1, -1, 1, 1)
-cifar_std = torch.tensor([0.2023, 0.1994, 0.2010]).view(1, -1, 1, 1)
 
+import torch.nn as nn
+import config as cfg
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
@@ -100,7 +97,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, num_classes=10, zero_init_residual=False,
+    def __init__(self, block, layers, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
                  norm_layer=None):
         super(ResNet, self).__init__()
@@ -122,7 +119,7 @@ class ResNet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
         # self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)  # original
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(cfg.img_shape[0], self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -131,7 +128,7 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        fc = [nn.Linear(self.feat_dim, num_classes, bias=False)]
+        fc = [nn.Linear(self.feat_dim, cfg.num_classes, bias=False)]
         self.fc = nn.Sequential(*fc)
 
         for m in self.modules():
@@ -179,7 +176,7 @@ class ResNet(nn.Module):
         self.train_state = train
 
     def forward(self, x):
-        x = self.relu(self.bn1(self.conv1((x - cifar_mean.to(x.device)) / cifar_std.to(x.device))))
+        x = self.relu(self.bn1(self.conv1((x - cfg.mean.to(x.device)) / cfg.std.to(x.device))))
 
         x = self.layer1(x)
         x = self.layer2(x)
@@ -193,6 +190,6 @@ class ResNet(nn.Module):
             return self.fc(x)
 
 
-def ResNet18(num_classes=10):
-    model = ResNet(BasicBlock, [2, 2, 2, 2], num_classes=num_classes)
+def ResNet18():
+    model = ResNet(BasicBlock, [2, 2, 2, 2])
     return model

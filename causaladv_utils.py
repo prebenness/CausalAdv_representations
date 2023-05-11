@@ -29,9 +29,9 @@ def get_args():
     parser.add_argument('--model_path', type=str)
 
     # Training specific args
-    parser.add_argument('--dataset', type=str, default='cifar10', choices=[ 'cifar10', 'cifar100', 'mnist' ])
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=[*cfg.dataset_stats.keys()])
     parser.add_argument('--download', type=bool, default=True, help="if can't find dataset, download from web")
-    parser.add_argument('--image_size', type=int, default=32)
+    #parser.add_argument('--image_size', type=int, default=32)
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--data_dir', type=str, default='data')
     parser.add_argument('--output_dir', type=str, default='output')
@@ -98,15 +98,11 @@ def handle_args(args):
         save_dir, _ = os.path.split(args.model_path)
 
     cfg.save_dir = save_dir
-
-    if args.dataset == 'cifar10':
-        cfg.num_classes = 10
-    elif args.dataset == 'cifar100':
-        cfg.num_classes = 100
-    elif args.dataset == 'mnist':
-        cfg.num_classes = 10
-    else:
-        raise NotImplementedError(f'Dataset {args.dataset} not supported')
+    dataset_stats = cfg.dataset_stats[args.dataset]
+    cfg.mean = dataset_stats['mean']
+    cfg.std = dataset_stats['std']
+    cfg.num_classes = dataset_stats['num_classes']
+    cfg.img_shape = dataset_stats['img_shape']
 
 
 def pgd(model, images, labels, basis, model_g, args):
@@ -379,6 +375,47 @@ def get_mnist(args, download=True):
     test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=500, shuffle=False)
     return train_loader, test_loader
 
+def get_emnist_balanced(args, download=True):
+    train_trans = transforms.Compose([transforms.RandomCrop(28, padding=4), transforms.RandomHorizontalFlip(),
+                                      transforms.ToTensor()])
+    test_trans = transforms.Compose([transforms.ToTensor()])
+
+    train_set = torchvision.datasets.EMNIST(args.data_dir, train=True, split='balanced', transform=train_trans, download=download)
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True,
+                                               num_workers=args.num_workers, pin_memory=True, drop_last=True)
+    
+    test_set = torchvision.datasets.MNIST(args.data_dir, train=False, transform=test_trans, download=download)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=500, shuffle=False)
+    return train_loader, test_loader
+
+def get_fashion_mnist(args, download=True):
+    train_trans = transforms.Compose([transforms.RandomCrop(28, padding=4), transforms.RandomHorizontalFlip(),
+                                      transforms.ToTensor()])
+    test_trans = transforms.Compose([transforms.ToTensor()])
+
+    train_set = torchvision.datasets.FashionMNIST(args.data_dir, train=True, transform=train_trans, download=download)
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True,
+                                               num_workers=args.num_workers, pin_memory=True, drop_last=True)
+    
+    test_set = torchvision.datasets.MNIST(args.data_dir, train=False, transform=test_trans, download=download)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=500, shuffle=False)
+    return train_loader, test_loader
+
+def get_pcam(args, download=True):
+    train_trans = transforms.Compose([transforms.RandomCrop(96, padding=4), transforms.RandomHorizontalFlip(),
+                                      transforms.ToTensor()])
+    test_trans = transforms.Compose([transforms.ToTensor()])
+    train_split = torchvision.datasets.PCAM(args.data_dir, split='train', transform=train_trans, download=download)
+    val_split = torchvision.datasets.PCAM(args.data_dir, split='val', transform=train_trans, download=download)
+    train_set = torch.utils.data.ConcatDataset([train_split, val_split])
+    
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True,
+                                               num_workers=args.num_workers, pin_memory=True, drop_last=True)
+    
+    test_set = torchvision.datasets.PCAM(args.data_dir, split='test', transform=test_trans, download=download)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=128, shuffle=False)
+    return train_loader, test_loader
+
 def get_cifar10(args, download=True):
     train_trans = transforms.Compose([transforms.RandomCrop(32, padding=4), transforms.RandomHorizontalFlip(),
                                       transforms.ToTensor()])
@@ -412,7 +449,13 @@ def get_dataset(args, download=True):
     elif args.dataset == 'cifar100':
         get_data = get_cifar100
     elif args.dataset == 'mnist':
-        get_data = get_mnist    
+        get_data = get_mnist
+    elif args.dataset == 'fashion_mnist':
+        get_data = get_fashion_mnist
+    elif args.dataset == 'emnist_balanced':
+        get_data = get_emnist_balanced
+    elif args.dataset == 'pcam':
+        get_data = get_pcam
     else:
         raise NotImplementedError(f'Dataset {args.dataset} not supported')
     train_loader, test_loader = get_data(args, download)
